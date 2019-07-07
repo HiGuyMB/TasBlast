@@ -58,7 +58,7 @@ impl TasFile {
     where
         T: Write,
     {
-        out.write_fmt(format_args!("{}\n{{\n", TasFile::escape(&self.mission)))?;
+        out.write_fmt(format_args!("{{\n   {}\n", TasFile::escape(&self.mission)))?;
 
         let mut elapsed: u32 = 0;
 
@@ -74,32 +74,50 @@ impl TasFile {
                         frame.delta, elapsed
                     ))?;
                     out.write_fmt(format_args!("      {{\n"))?;
-                    let mv = if let Some(mv) = &frame.moves[0] {
-                        mv
-                    } else {
-                        frame.moves[1]
-                            .as_ref()
-                            .ok_or(io::Error::new(io::ErrorKind::Other, "No move frame"))?
-                    };
-                    out.write_fmt(format_args!(
-                        "         camera ({} {} {})\n",
-                        mv.yaw.unwrap_or(0f64),
-                        mv.pitch.unwrap_or(0f64),
-                        mv.roll.unwrap_or(0f64)
-                    ))?;
-                    out.write_fmt(format_args!(
-                        "         move ({} {} {})\n",
-                        mv.mx, mv.my, mv.mz
-                    ))?;
-                    out.write_fmt(format_args!(
-                        "         triggers ({} {} {} {} {} {})\n",
-                        mv.triggers[0] as u8,
-                        mv.triggers[1] as u8,
-                        mv.triggers[2] as u8,
-                        mv.triggers[3] as u8,
-                        mv.triggers[4] as u8,
-                        mv.triggers[5] as u8
-                    ))?;
+                    if let Some(mv) = &frame.moves[0] {
+                        out.write_fmt(format_args!(
+                            "         camera ({} {} {})\n",
+                            mv.yaw.unwrap_or(0f64),
+                            mv.pitch.unwrap_or(0f64),
+                            mv.roll.unwrap_or(0f64)
+                        ))?;
+                        out.write_fmt(format_args!(
+                            "         move ({} {} {})\n",
+                            mv.mx, mv.my, mv.mz
+                        ))?;
+                        out.write_fmt(format_args!(
+                            "         triggers ({} {} {} {} {} {})\n",
+                            mv.triggers[0] as u8,
+                            mv.triggers[1] as u8,
+                            mv.triggers[2] as u8,
+                            mv.triggers[3] as u8,
+                            mv.triggers[4] as u8,
+                            mv.triggers[5] as u8
+                        ))?;
+                    }
+                    out.write_fmt(format_args!("      }}\n"))?;
+                    out.write_fmt(format_args!("      {{\n"))?;
+                    if let Some(mv) = &frame.moves[1] {
+                        out.write_fmt(format_args!(
+                            "         camera ({} {} {})\n",
+                            mv.yaw.unwrap_or(0f64),
+                            mv.pitch.unwrap_or(0f64),
+                            mv.roll.unwrap_or(0f64)
+                        ))?;
+                        out.write_fmt(format_args!(
+                            "         move ({} {} {})\n",
+                            mv.mx, mv.my, mv.mz
+                        ))?;
+                        out.write_fmt(format_args!(
+                            "         triggers ({} {} {} {} {} {})\n",
+                            mv.triggers[0] as u8,
+                            mv.triggers[1] as u8,
+                            mv.triggers[2] as u8,
+                            mv.triggers[3] as u8,
+                            mv.triggers[4] as u8,
+                            mv.triggers[5] as u8
+                        ))?;
+                    }
                     out.write_fmt(format_args!("      }}\n"))?;
                 } else {
                     out.write_fmt(format_args!(
@@ -233,39 +251,42 @@ fn bool6<'a, E: ParseError<&'a str>>(
     )(i)
 }
 
-fn move_<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Move, E> {
-    delim_context_cut(
-        "move",
-        char('{'),
-        ws_wrap(map(
-            tuple((
-                preceded(tag("camera"), ws_wrap(float3)),
-                preceded(tag("move"), ws_wrap(float3)),
-                preceded(tag("triggers"), ws_wrap(bool6)),
-            )),
-            |((yaw, pitch, roll), (mx, my, mz), triggers)| Move {
-                yaw: Some(yaw),
-                pitch: Some(pitch),
-                roll: Some(roll),
-                mx: mx,
-                my: my,
-                mz: mz,
-                freelook: true,
-                triggers: [
-                    triggers.0, triggers.1, triggers.2, triggers.3, triggers.4, triggers.5,
-                ],
-            },
+fn move_inner<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Move, E> {
+    ws_wrap(map(
+        tuple((
+            preceded(tag("camera"), ws_wrap(float3)),
+            preceded(tag("move"), ws_wrap(float3)),
+            preceded(tag("triggers"), ws_wrap(bool6)),
         )),
-        char('}'),
-    )(i)
+        |((yaw, pitch, roll), (mx, my, mz), triggers)| Move {
+            yaw: Some(yaw),
+            pitch: Some(pitch),
+            roll: Some(roll),
+            mx: mx,
+            my: my,
+            mz: mz,
+            freelook: true,
+            triggers: [
+                triggers.0, triggers.1, triggers.2, triggers.3, triggers.4, triggers.5,
+            ],
+        },
+    ))(i)
+}
+
+fn move_<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Option<Move>, E> {
+    delim_context_cut("move", char('{'), ws_before(opt(move_inner)), char('}'))(i)
 }
 
 fn move_frame<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Vec<Frame>, E> {
     ws_before(map(
-        separated_pair(terminated(double, preceded(sp, tag("ms"))), sp, move_),
-        |(ms, mv)| {
+        separated_pair(
+            terminated(double, preceded(sp, tag("ms"))),
+            sp,
+            separated_pair(move_, sp, move_),
+        ),
+        |(ms, (mv0, mv1))| {
             vec![Frame {
-                moves: [Some(mv), None],
+                moves: [mv0, mv1],
                 delta: ms as u16,
             }]
         },
@@ -299,22 +320,16 @@ fn sequence<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (String,
 }
 
 fn tasfile<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, TasFile, E> {
-    context(
+    delim_context_cut(
         "tasfile",
+        char('{'),
         map(
-            tuple((
-                ws_wrap(string),
-                delim_context_cut(
-                    "conts",
-                    char('{'),
-                    ws_wrap(separated_list(sp, sequence)),
-                    char('}'),
-                ),
-            )),
+            tuple((ws_wrap(string), many0(ws_wrap(sequence)))),
             |(mission, sequences)| TasFile {
                 mission: mission.into(),
                 sequences,
             },
         ),
+        char('}'),
     )(i)
 }
