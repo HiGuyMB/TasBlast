@@ -23,6 +23,11 @@ impl BitStream {
         self.data
     }
 
+    pub fn seek(&mut self, byte_offset: usize, bit_offset: u8) {
+        self.byte_offset = byte_offset;
+        self.bit_offset = bit_offset;
+    }
+
     pub fn read_bits_u8(&mut self, bits: u8) -> Result<u8, ()> {
         //Sanity
         if bits > 8 {
