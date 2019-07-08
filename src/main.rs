@@ -1,16 +1,10 @@
-extern crate derive_more;
-extern crate nom;
-extern crate regex;
+extern crate librec;
 
-use crate::bit_stream::BitStream;
-use crate::recording::Recording;
-use crate::tas_rec::TasFile;
+use librec::bit_stream::BitStream;
+use librec::recording::Recording;
+use librec::tas_rec::TasFile;
 use std::env::args;
 use std::fs;
-
-mod bit_stream;
-mod recording;
-mod tas_rec;
 
 fn main() -> Result<(), ()> {
     let args = args().collect::<Vec<_>>();

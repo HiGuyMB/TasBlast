@@ -1,8 +1,10 @@
 [package]
-name = "tas_blast"
+name = "librec"
 version = "0.1.0"
 authors = ["HiGuy Smith <higuymb@gmail.com>"]
 edition = "2018"
 
 [dependencies]
-librec = { path = "librec" }
+derive_more = "0.13.0"
+nom = "5.0.0"
+regex = "1.1.9"
