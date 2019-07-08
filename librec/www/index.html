@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rec TAS Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            display: flex;
+            flex-direction: row;
+        }
+        #input, #output {
+            flex-grow: 1;
+            flex-basis: 50%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        #rect {
+            width: 100%;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body>
+<div id="input">
+    <textarea name="rect" id="rect" cols="30" rows="10">Tas File Contents Here</textarea>
+    <input type="submit" value="Convert!" id="convert">
+</div>
+<div id="output">
+    <span>Errors (if any):</span>
+    <pre id="error"></pre>
+</div>
+<script src="./bootstrap.js"></script>
+</body>
+</html>
