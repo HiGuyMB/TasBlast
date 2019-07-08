@@ -54,7 +54,7 @@ fn main() -> Result<(), ()> {
 
             let mut v: Vec<u8> = vec![];
             tf.print(&mut v).map_err(|_| ())?;
-            let tf2 = TasFile::parse(String::from_utf8(v).map_err(|_| ())?)?;
+            let tf2 = TasFile::parse(String::from_utf8(v).map_err(|_| ())?).map_err(|_| ())?;
             let r2 = tf2.into_rec();
 
             let mut os = BitStream::new(vec![]);

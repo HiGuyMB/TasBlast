@@ -85,7 +85,9 @@ impl BitStream {
         if bits > 8 {
             return Err(());
         }
-        assert!(bits == 8 || value < (1 << bits));
+        if !(bits == 8 || value < (1 << bits)) {
+            return Err(());
+        }
 
         //Sanitize value, don't let it be longer than the number of bits we're promised
         let san_value = value & (0xFF >> (8 - bits));
@@ -165,7 +167,9 @@ impl BitStream {
     }
 
     pub fn write_bits_u16(&mut self, value: u16, bits: u8) -> Result<(), ()> {
-        assert!(bits == 16 || value < (1 << u16::from(bits)));
+        if !(bits == 16 || value < (1 << u16::from(bits))) {
+            return Err(());
+        }
         self.write_bits_u8((value & 0xFF) as u8, min(bits, 8))?;
         if bits <= 8 {
             Ok(())
@@ -175,7 +179,9 @@ impl BitStream {
     }
 
     pub fn write_bits_u32(&mut self, value: u32, bits: u8) -> Result<(), ()> {
-        assert!(bits == 32 || value < (1 << u32::from(bits)));
+        if !(bits == 32 || value < (1 << u32::from(bits))) {
+            return Err(());
+        }
         self.write_bits_u16((value & 0xFF_FF) as u16, min(bits, 16))?;
         if bits <= 16 {
             Ok(())
@@ -185,7 +191,9 @@ impl BitStream {
     }
 
     pub fn write_bits_u64(&mut self, value: u64, bits: u8) -> Result<(), ()> {
-        assert!(bits == 64 || value < (1 << u64::from(bits)));
+        if !(bits == 64 || value < (1 << u64::from(bits))) {
+            return Err(());
+        }
         self.write_bits_u32((value & 0xFF_FF_FF) as u32, min(bits, 32))?;
         if bits <= 32 {
             Ok(())
@@ -264,7 +272,7 @@ impl BitStream {
 
     pub fn write_optional<T, F>(&mut self, value: Option<T>, write_fn: F) -> Result<(), ()>
     where
-        F: FnOnce(&mut BitStream, T) -> Result<(), ()>,
+        F: Fn(&mut BitStream, T) -> Result<(), ()>,
     {
         match value {
             Some(val) => {
@@ -288,7 +296,9 @@ impl BitStream {
         offset: f64,
     ) -> Result<(), ()> {
         let scaled = (value - offset) / scale;
-        assert!(scaled < f64::from(bits).exp2());
+//        if !(scaled < f64::from(bits).exp2()) {
+//            return Err(());
+//        }
         self.write_bits_u64(scaled as u64, bits)
     }
 }

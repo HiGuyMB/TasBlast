@@ -49,16 +49,15 @@ impl TasFile {
         }
     }
 
-    pub fn parse(input: String) -> Result<TasFile, ()> {
-        let re = Regex::new(r"//.*").map_err(|_| ())?;
+    pub fn parse(input: String) -> Result<TasFile, String> {
+        let re = Regex::new(r"//.*").map_err(|_| String::from("Regex Error"))?;
         let formatted = re.replace_all(input.as_str(), "");
         match tasfile::<VerboseError<&str>>(&formatted) {
             Ok((_, tf)) => Ok(tf),
             Err(Err::Error(e)) | Err(Err::Failure(e)) => {
-                eprintln!("{}", convert_error(&formatted, e));
-                Err(())
+                Err(convert_error(&formatted, e))
             }
-            _ => Err(()),
+            _ => Err("Unknown Error".into()),
         }
     }
 
@@ -138,6 +137,7 @@ impl TasFile {
                         elapsed,
                         *elapsed + u32::from(frame.delta) * (combined - 1) as u32
                     ))?;
+                    *elapsed += u32::from(frame.delta) * (combined - 1) as u32;
                 } else {
                     out.write_fmt(format_args!(
                         "      frame {} ms // {}\n",
