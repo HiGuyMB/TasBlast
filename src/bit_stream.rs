@@ -6,6 +6,7 @@ pub struct BitStream {
     byte_offset: usize,
 }
 
+#[allow(dead_code)]
 impl BitStream {
     pub fn new(data: Vec<u8>) -> BitStream {
         BitStream {
@@ -64,7 +65,7 @@ impl BitStream {
                 // shift it over so it lines up
                 let second = (self.data[self.byte_offset] & (0xFF >> (8 - extra))) << remain;
                 //Or it with the result so we get the final value
-                result = result | second;
+                result |= second;
             }
             //Shift should become however many bits we read from that new top
             self.bit_offset = extra;
@@ -130,41 +131,41 @@ impl BitStream {
             //Just add to the shift
             self.bit_offset += bits;
         }
-        return Ok(());
+        Ok(())
     }
 
     pub fn read_bits_u16(&mut self, bits: u8) -> Result<u16, ()> {
         let lower = self.read_bits_u8(min(bits, 8))?;
         if bits <= 8 {
-            Ok(lower as u16)
+            Ok(u16::from(lower))
         } else {
             let upper = self.read_bits_u8(bits - 8)?;
-            Ok(lower as u16 | ((upper as u16) << 8u16))
+            Ok(u16::from(lower) | ((u16::from(upper)) << 8u16))
         }
     }
 
     pub fn read_bits_u32(&mut self, bits: u8) -> Result<u32, ()> {
         let lower = self.read_bits_u16(min(bits, 16))?;
         if bits <= 16 {
-            Ok(lower as u32)
+            Ok(u32::from(lower))
         } else {
             let upper = self.read_bits_u16(bits - 16)?;
-            Ok(lower as u32 | ((upper as u32) << 16u32))
+            Ok(u32::from(lower) | ((u32::from(upper)) << 16u32))
         }
     }
 
     pub fn read_bits_u64(&mut self, bits: u8) -> Result<u64, ()> {
         let lower = self.read_bits_u32(min(bits, 32))?;
         if bits <= 32 {
-            Ok(lower as u64)
+            Ok(u64::from(lower))
         } else {
             let upper = self.read_bits_u32(bits - 32)?;
-            Ok(lower as u64 | ((upper as u64) << 32u64))
+            Ok(u64::from(lower) | ((u64::from(upper)) << 32u64))
         }
     }
 
     pub fn write_bits_u16(&mut self, value: u16, bits: u8) -> Result<(), ()> {
-        assert!(bits == 16 || value < (1 << bits as u16));
+        assert!(bits == 16 || value < (1 << u16::from(bits)));
         self.write_bits_u8((value & 0xFF) as u8, min(bits, 8))?;
         if bits <= 8 {
             Ok(())
@@ -174,8 +175,8 @@ impl BitStream {
     }
 
     pub fn write_bits_u32(&mut self, value: u32, bits: u8) -> Result<(), ()> {
-        assert!(bits == 32 || value < (1 << bits as u32));
-        self.write_bits_u16((value & 0xFFFF) as u16, min(bits, 16))?;
+        assert!(bits == 32 || value < (1 << u32::from(bits)));
+        self.write_bits_u16((value & 0xFF_FF) as u16, min(bits, 16))?;
         if bits <= 16 {
             Ok(())
         } else {
@@ -184,8 +185,8 @@ impl BitStream {
     }
 
     pub fn write_bits_u64(&mut self, value: u64, bits: u8) -> Result<(), ()> {
-        assert!(bits == 64 || value < (1 << bits as u64));
-        self.write_bits_u32((value & 0xFFFFFF) as u32, min(bits, 32))?;
+        assert!(bits == 64 || value < (1 << u64::from(bits)));
+        self.write_bits_u32((value & 0xFF_FF_FF) as u32, min(bits, 32))?;
         if bits <= 32 {
             Ok(())
         } else {
@@ -287,7 +288,7 @@ impl BitStream {
         offset: f64,
     ) -> Result<(), ()> {
         let scaled = (value - offset) / scale;
-        assert!(scaled < (bits as f64).exp2());
+        assert!(scaled < f64::from(bits).exp2());
         self.write_bits_u64(scaled as u64, bits)
     }
 }

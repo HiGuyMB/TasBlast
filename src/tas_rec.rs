@@ -1,11 +1,11 @@
 use crate::recording::{Frame, Move, Recording};
 use nom::branch::alt;
 use nom::bytes::complete::is_not;
-use nom::bytes::complete::{escaped, is_a, tag, take_until, take_while};
-use nom::character::complete::{alphanumeric1, char, digit0, line_ending, one_of};
+use nom::bytes::complete::{escaped, is_a, tag, take_while};
+use nom::character::complete::{char, one_of};
 use nom::combinator::{cut, map, opt};
 use nom::error::{context, convert_error, ParseError, VerboseError};
-use nom::multi::{many0, many1, separated_list};
+use nom::multi::{many0, separated_list};
 use nom::number::complete::double;
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 use nom::{Err, IResult};
@@ -14,17 +14,25 @@ use std::io;
 use std::io::Write;
 
 #[derive(Debug, Clone)]
+
+pub struct Sequence {
+    pub name: String,
+    pub frames: Vec<Frame>,
+}
+
 pub struct TasFile {
     pub mission: String,
-    pub sequences: Vec<(String, Vec<Frame>)>,
+    pub sequences: Vec<Sequence>,
 }
 
 impl TasFile {
     pub fn from_rec(recording: Recording) -> TasFile {
-        let sequences: Vec<(String, Vec<Frame>)> = vec![("Imported".into(), recording.frames)];
         TasFile {
             mission: recording.mission,
-            sequences,
+            sequences: vec![Sequence {
+                name: "Imported".into(),
+                frames: recording.frames,
+            }],
         }
     }
 
@@ -32,7 +40,7 @@ impl TasFile {
         let mut frames = vec![];
         let mut seqs = self.sequences;
         for sequence in &mut seqs {
-            frames.append(&mut sequence.1);
+            frames.append(&mut sequence.frames);
         }
 
         Recording {
@@ -41,7 +49,7 @@ impl TasFile {
         }
     }
 
-    pub fn parse(mut input: String) -> Result<TasFile, ()> {
+    pub fn parse(input: String) -> Result<TasFile, ()> {
         let re = Regex::new(r"//.*").map_err(|_| ())?;
         let formatted = re.replace_all(input.as_str(), "");
         match tasfile::<VerboseError<&str>>(&formatted) {
@@ -54,6 +62,96 @@ impl TasFile {
         }
     }
 
+    fn print_move<T>(&self, opt_mv: &Option<Move>, out: &mut T) -> Result<(), io::Error>
+    where
+        T: Write,
+    {
+        out.write_fmt(format_args!("      {{\n"))?;
+        if let Some(mv) = opt_mv {
+            out.write_fmt(format_args!(
+                "         camera ({} {} {})\n",
+                mv.yaw.unwrap_or(0f64),
+                mv.pitch.unwrap_or(0f64),
+                mv.roll.unwrap_or(0f64)
+            ))?;
+            out.write_fmt(format_args!(
+                "         move ({} {} {})\n",
+                mv.mx, mv.my, mv.mz
+            ))?;
+            out.write_fmt(format_args!(
+                "         triggers ({} {} {} {} {} {})\n",
+                mv.triggers[0] as u8,
+                mv.triggers[1] as u8,
+                mv.triggers[2] as u8,
+                mv.triggers[3] as u8,
+                mv.triggers[4] as u8,
+                mv.triggers[5] as u8
+            ))?;
+        }
+        out.write_fmt(format_args!("      }}\n"))
+    }
+
+    fn print_sequence<T>(
+        &self,
+        seq: &Sequence,
+        out: &mut T,
+        elapsed: &mut u32,
+    ) -> Result<(), io::Error>
+    where
+        T: Write,
+    {
+        out.write_fmt(format_args!(
+            "   {{\n      {}\n",
+            TasFile::escape(&seq.name)
+        ))?;
+
+        let mut i = 0;
+        while i < seq.frames.len() {
+            let frame = &seq.frames[i];
+
+            *elapsed += u32::from(frame.delta);
+            if frame.has_move() {
+                out.write_fmt(format_args!(
+                    "      moveframe {} ms //{}\n",
+                    frame.delta, elapsed
+                ))?;
+                self.print_move(&frame.moves[0], out)?;
+                self.print_move(&frame.moves[1], out)?;
+            } else {
+                // See how many in a row we have
+                let mut combined = 0;
+                for j in i..seq.frames.len() {
+                    if seq.frames[j].has_move() {
+                        break;
+                    }
+                    if seq.frames[j].delta != frame.delta {
+                        break;
+                    }
+                    combined += 1
+                }
+                if combined > 1 {
+                    i += combined - 1;
+                    out.write_fmt(format_args!(
+                        "      frames {} {} ms // {} -> {}\n",
+                        combined,
+                        frame.delta,
+                        elapsed,
+                        *elapsed + u32::from(frame.delta) * (combined - 1) as u32
+                    ))?;
+                } else {
+                    out.write_fmt(format_args!(
+                        "      frame {} ms // {}\n",
+                        frame.delta, elapsed
+                    ))?;
+                }
+            }
+
+            i += 1;
+        }
+
+        out.write_fmt(format_args!("   }}\n"))
+    }
+
     pub fn print<T>(&self, out: &mut T) -> Result<(), io::Error>
     where
         T: Write,
@@ -63,76 +161,12 @@ impl TasFile {
         let mut elapsed: u32 = 0;
 
         for seq in &self.sequences {
-            out.write_fmt(format_args!("   {{\n      {}\n", TasFile::escape(&seq.0)))?;
-
-            for frame in &seq.1 {
-                elapsed += frame.delta as u32;
-                let has_moves = frame.moves[0].is_some() || frame.moves[1].is_some();
-                if has_moves {
-                    out.write_fmt(format_args!(
-                        "      moveframe {} ms //{}\n",
-                        frame.delta, elapsed
-                    ))?;
-                    out.write_fmt(format_args!("      {{\n"))?;
-                    if let Some(mv) = &frame.moves[0] {
-                        out.write_fmt(format_args!(
-                            "         camera ({} {} {})\n",
-                            mv.yaw.unwrap_or(0f64),
-                            mv.pitch.unwrap_or(0f64),
-                            mv.roll.unwrap_or(0f64)
-                        ))?;
-                        out.write_fmt(format_args!(
-                            "         move ({} {} {})\n",
-                            mv.mx, mv.my, mv.mz
-                        ))?;
-                        out.write_fmt(format_args!(
-                            "         triggers ({} {} {} {} {} {})\n",
-                            mv.triggers[0] as u8,
-                            mv.triggers[1] as u8,
-                            mv.triggers[2] as u8,
-                            mv.triggers[3] as u8,
-                            mv.triggers[4] as u8,
-                            mv.triggers[5] as u8
-                        ))?;
-                    }
-                    out.write_fmt(format_args!("      }}\n"))?;
-                    out.write_fmt(format_args!("      {{\n"))?;
-                    if let Some(mv) = &frame.moves[1] {
-                        out.write_fmt(format_args!(
-                            "         camera ({} {} {})\n",
-                            mv.yaw.unwrap_or(0f64),
-                            mv.pitch.unwrap_or(0f64),
-                            mv.roll.unwrap_or(0f64)
-                        ))?;
-                        out.write_fmt(format_args!(
-                            "         move ({} {} {})\n",
-                            mv.mx, mv.my, mv.mz
-                        ))?;
-                        out.write_fmt(format_args!(
-                            "         triggers ({} {} {} {} {} {})\n",
-                            mv.triggers[0] as u8,
-                            mv.triggers[1] as u8,
-                            mv.triggers[2] as u8,
-                            mv.triggers[3] as u8,
-                            mv.triggers[4] as u8,
-                            mv.triggers[5] as u8
-                        ))?;
-                    }
-                    out.write_fmt(format_args!("      }}\n"))?;
-                } else {
-                    out.write_fmt(format_args!(
-                        "      frame {} ms //{}\n",
-                        frame.delta, elapsed
-                    ))?;
-                }
-            }
-
-            out.write_fmt(format_args!("   }}\n"))?;
+            self.print_sequence(seq, out, &mut elapsed)?;
         }
         out.write_fmt(format_args!("}}\n"))
     }
 
-    pub fn escape(value: &String) -> String {
+    pub fn escape(value: &str) -> String {
         format!("\"{}\"", value.replace("\\", "\\\\").replace("\"", "\\\""))
     }
 }
@@ -196,16 +230,19 @@ fn empty_frame<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Vec<F
 }
 
 fn empty_frames<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Vec<Frame>, E> {
-    ws_before(map(double, |n| {
-        let mut v: Vec<Frame> = Vec::with_capacity(n as usize);
-        for i in 0..n as usize {
-            v.push(Frame {
-                moves: [None, None],
-                delta: 1,
-            })
-        }
-        v
-    }))(i)
+    ws_before(map(
+        tuple((double, opt(delimited(sp, double, preceded(sp, tag("ms")))))),
+        |(n, ms)| {
+            let mut v: Vec<Frame> = Vec::with_capacity(n as usize);
+            for _ in 0..n as usize {
+                v.push(Frame {
+                    moves: [None, None],
+                    delta: ms.map(|f| f as u16).unwrap_or(1),
+                })
+            }
+            v
+        },
+    ))(i)
 }
 
 fn float3<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (f64, f64, f64), E> {
@@ -262,9 +299,9 @@ fn move_inner<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Move, 
             yaw: Some(yaw),
             pitch: Some(pitch),
             roll: Some(roll),
-            mx: mx,
-            my: my,
-            mz: mz,
+            mx,
+            my,
+            mz,
             freelook: true,
             triggers: [
                 triggers.0, triggers.1, triggers.2, triggers.3, triggers.4, triggers.5,
@@ -301,7 +338,7 @@ fn frame<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Vec<Frame>,
     ))(i)
 }
 
-fn sequence<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (String, Vec<Frame>), E> {
+fn sequence<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, Sequence, E> {
     delim_context_cut(
         "sequence",
         char('{'),
@@ -312,7 +349,10 @@ fn sequence<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (String,
                 for list in &mut frames {
                     collected.append(list);
                 }
-                (name.into(), collected)
+                Sequence {
+                    name: name.into(),
+                    frames: collected,
+                }
             },
         )),
         char('}'),

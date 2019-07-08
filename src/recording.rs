@@ -1,5 +1,5 @@
 use crate::bit_stream::BitStream;
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::f64::consts::PI;
 
 #[derive(Debug, Clone)]
@@ -100,6 +100,10 @@ impl Frame {
         bs.write_optional(m1, |bs, mv| mv.into_stream(bs))?;
         bs.write_optional(m2, |bs, mv| mv.into_stream(bs))?;
         bs.write_bits_u16(self.delta, 10)
+    }
+
+    pub fn has_move(&self) -> bool {
+        self.moves[0].is_some() || self.moves[1].is_some()
     }
 }
 

@@ -6,9 +6,7 @@ use crate::bit_stream::BitStream;
 use crate::recording::Recording;
 use crate::tas_rec::TasFile;
 use std::env::args;
-use std::fs::File;
-use std::io::{Cursor, Read, Write};
-use std::{fs, io};
+use std::fs;
 
 mod bit_stream;
 mod recording;
