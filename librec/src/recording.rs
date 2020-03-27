@@ -1,8 +1,10 @@
 use crate::bit_stream::BitStream;
 use std::cmp::max;
 use std::f64::consts::PI;
+use crate::error::Result;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Move {
     pub yaw: Option<f64>,
     pub pitch: Option<f64>,
@@ -14,20 +16,20 @@ pub struct Move {
     pub triggers: [bool; 6],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Frame {
     pub moves: [Option<Move>; 2],
     pub delta: u16,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Recording {
     pub mission: String,
     pub frames: Vec<Frame>,
 }
 
 impl Move {
-    pub fn from_stream(bs: &mut BitStream) -> Result<Move, ()> {
+    pub fn from_stream(bs: &mut BitStream) -> Result<Move> {
         let yaw = bs.read_optional(|bs| Move::read_angle(bs))?;
         let pitch = bs.read_optional(|bs| Move::read_angle(bs))?;
         let roll = bs.read_optional(|bs| Move::read_angle(bs))?;
@@ -51,7 +53,7 @@ impl Move {
         })
     }
 
-    pub fn into_stream(self, bs: &mut BitStream) -> Result<(), ()> {
+    pub fn into_stream(self, bs: &mut BitStream) -> Result<()> {
         bs.write_optional(self.yaw, |bs, angle| Move::write_angle(bs, angle))?;
         bs.write_optional(self.pitch, |bs, angle| Move::write_angle(bs, angle))?;
         bs.write_optional(self.roll, |bs, angle| Move::write_angle(bs, angle))?;
@@ -65,7 +67,7 @@ impl Move {
         Ok(())
     }
 
-    fn read_angle(bs: &mut BitStream) -> Result<f64, ()> {
+    fn read_angle(bs: &mut BitStream) -> Result<f64> {
         // Torque scales these from [-pi, pi] -> [0, 2^16]
         let angle = bs.read_scaled_f64_bits(16, PI / 32768f64, 0f64)?;
         if angle >= PI {
@@ -75,7 +77,7 @@ impl Move {
         }
     }
 
-    fn write_angle(bs: &mut BitStream, mut angle: f64) -> Result<(), ()> {
+    fn write_angle(bs: &mut BitStream, mut angle: f64) -> Result<()> {
         // Torque scales these from [-pi, pi] -> [0, 2^16]
         if angle < 0f64 {
             angle += 2f64 * PI;
@@ -85,7 +87,7 @@ impl Move {
 }
 
 impl Frame {
-    pub fn from_stream(bs: &mut BitStream) -> Result<Frame, ()> {
+    pub fn from_stream(bs: &mut BitStream) -> Result<Frame> {
         let move0 = bs.read_optional(|bs| Move::from_stream(bs))?;
         let move1 = bs.read_optional(|bs| Move::from_stream(bs))?;
         let delta = bs.read_bits_u16(10)?;
@@ -95,7 +97,7 @@ impl Frame {
         })
     }
 
-    pub fn into_stream(self, bs: &mut BitStream) -> Result<(), ()> {
+    pub fn into_stream(self, bs: &mut BitStream) -> Result<()> {
         let [m1, m2] = self.moves;
         bs.write_optional(m1, |bs, mv| mv.into_stream(bs))?;
         bs.write_optional(m2, |bs, mv| mv.into_stream(bs))?;
@@ -108,7 +110,7 @@ impl Frame {
 }
 
 impl Recording {
-    pub fn from_stream(bs: &mut BitStream) -> Result<Recording, ()> {
+    pub fn from_stream(bs: &mut BitStream) -> Result<Recording> {
         let mission = bs.read_string()?;
         let mut frames = vec![];
 
@@ -120,6 +122,9 @@ impl Recording {
 
             let mut data = Vec::with_capacity(length as usize);
             for _ in 0..length {
+                if bs.eof() {
+                    return Ok(Recording { mission, frames });
+                }
                 data.push(bs.read_u8()?);
             }
 
@@ -130,7 +135,7 @@ impl Recording {
         Ok(Recording { mission, frames })
     }
 
-    pub fn into_stream(self, bs: &mut BitStream) -> Result<(), ()> {
+    pub fn into_stream(self, bs: &mut BitStream) -> Result<()> {
         bs.write_string(self.mission)?;
 
         for frame in self.frames {

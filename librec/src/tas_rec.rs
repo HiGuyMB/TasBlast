@@ -10,8 +10,9 @@ use nom::number::complete::double;
 use nom::sequence::{delimited, preceded, separated_pair, terminated, tuple};
 use nom::{Err, IResult};
 use regex::Regex;
-use std::io;
 use std::io::Write;
+use crate::error::Result;
+use crate::error::ErrorKind::{GenericError, GenericError2};
 
 #[derive(Debug, Clone)]
 
@@ -49,19 +50,19 @@ impl TasFile {
         }
     }
 
-    pub fn parse(input: String) -> Result<TasFile, String> {
-        let re = Regex::new(r"//.*").map_err(|_| String::from("Regex Error"))?;
+    pub fn parse(input: String) -> Result<TasFile> {
+        let re = Regex::new(r"//.*").map_err(|e| GenericError2(format!("Regex Error: {}", e)))?;
         let formatted = re.replace_all(input.as_str(), "");
         match tasfile::<VerboseError<&str>>(&formatted) {
             Ok((_, tf)) => Ok(tf),
             Err(Err::Error(e)) | Err(Err::Failure(e)) => {
-                Err(convert_error(&formatted, e))
+                Err(GenericError2(convert_error(&formatted, e)).into())
             }
-            _ => Err("Unknown Error".into()),
+            _ => Err(GenericError("Unknown Error").into()),
         }
     }
 
-    fn print_move<T>(&self, opt_mv: &Option<Move>, out: &mut T) -> Result<(), io::Error>
+    fn print_move<T>(&self, opt_mv: &Option<Move>, out: &mut T) -> Result<()>
     where
         T: Write,
     {
@@ -87,7 +88,8 @@ impl TasFile {
                 mv.triggers[5] as u8
             ))?;
         }
-        out.write_fmt(format_args!("      }}\n"))
+        out.write_fmt(format_args!("      }}\n"))?;
+        Ok(())
     }
 
     fn print_sequence<T>(
@@ -95,7 +97,7 @@ impl TasFile {
         seq: &Sequence,
         out: &mut T,
         elapsed: &mut u32,
-    ) -> Result<(), io::Error>
+    ) -> Result<()>
     where
         T: Write,
     {
@@ -149,10 +151,11 @@ impl TasFile {
             i += 1;
         }
 
-        out.write_fmt(format_args!("   }}\n"))
+        out.write_fmt(format_args!("   }}\n"))?;
+        Ok(())
     }
 
-    pub fn print<T>(&self, out: &mut T) -> Result<(), io::Error>
+    pub fn print<T>(&self, out: &mut T) -> Result<()>
     where
         T: Write,
     {
@@ -163,7 +166,8 @@ impl TasFile {
         for seq in &self.sequences {
             self.print_sequence(seq, out, &mut elapsed)?;
         }
-        out.write_fmt(format_args!("}}\n"))
+        out.write_fmt(format_args!("}}\n"))?;
+        Ok(())
     }
 
     pub fn escape(value: &str) -> String {
