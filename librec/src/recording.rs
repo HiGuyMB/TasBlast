@@ -142,7 +142,7 @@ impl Recording {
             let mut inner_stream = BitStream::new(vec![]);
             frame.into_stream(&mut inner_stream)?;
 
-            let bytes = inner_stream.bytes();
+            let bytes = inner_stream.into_bytes();
             let len = max(bytes.len(), 4);
             let extra = len - bytes.len();
             bs.write_u8(len as u8)?;
@@ -156,5 +156,48 @@ impl Recording {
         }
 
         Ok(())
+    }
+}
+
+// Camera movement is using floats, which can be confused by floating point precision
+// "Numbers are hard"
+#[test]
+fn test_bitstream_precision() {
+    let mut str = BitStream::new(vec![]);
+    let mv = Move {
+        yaw: Some(-0.012271846303085532), // Extremely precise number that screws up float math
+        pitch: None,
+        roll: None,
+        mx: 0.0,
+        my: 0.0,
+        mz: 0.0,
+        freelook: false,
+        triggers: [false; 6]
+    };
+    mv.clone().into_stream(&mut str).expect("Cannot write Move");
+    str.seek(0, 0);
+
+    let mv2 = Move::from_stream(&mut str).expect("Cannot read Move");
+    assert_eq!(mv.yaw.expect("Need yaw"), mv2.yaw.expect("Need yaw"));
+
+    for i in 0..65536 {
+        let scaled = ((i - 32768) as f64) * (PI / 32768f64);
+
+        let mut str = BitStream::new(vec![]);
+        let mv = Move {
+            yaw: Some(scaled),
+            pitch: None,
+            roll: None,
+            mx: 0.0,
+            my: 0.0,
+            mz: 0.0,
+            freelook: false,
+            triggers: [false; 6]
+        };
+        mv.clone().into_stream(&mut str).expect("Cannot write Move");
+        str.seek(0, 0);
+
+        let mv2 = Move::from_stream(&mut str).expect("Cannot read Move");
+        assert!((mv2.yaw.expect("Need yaw") - scaled).abs() < 0.00000001f64); // 16 bit float epsilon is greater than this
     }
 }

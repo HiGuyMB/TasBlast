@@ -22,8 +22,12 @@ impl BitStream {
         self.byte_offset >= self.data.len()
     }
 
-    pub fn bytes(self) -> Vec<u8> {
+    pub fn into_bytes(self) -> Vec<u8> {
         self.data
+    }
+
+    pub fn bytes(&self) -> &Vec<u8> {
+        &self.data
     }
 
     pub fn seek(&mut self, byte_offset: usize, bit_offset: u8) {
@@ -286,8 +290,8 @@ impl BitStream {
     }
 
     pub fn read_scaled_f64_bits(&mut self, bits: u8, scale: f64, offset: f64) -> Result<f64> {
-        let inner = self.read_bits_u64(bits)? as f64;
-        Ok(inner * scale + offset)
+        let inner = self.read_bits_u64(bits)?;
+        Ok((inner as f64) * scale + offset)
     }
 
     pub fn write_scaled_f64_bits(
@@ -301,6 +305,7 @@ impl BitStream {
 //        if !(scaled < f64::from(bits).exp2()) {
 //            return Err(());
 //        }
-        self.write_bits_u64(scaled as u64, bits)
+        // When importing recs, scaled can sometimes be 65407.999999999993 due to precision
+        self.write_bits_u64(scaled.round() as u64, bits)
     }
 }

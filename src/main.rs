@@ -11,9 +11,9 @@ use std::fs;
 fn main() -> Result<()> {
     let args = args().collect::<Vec<_>>();
 
-    const usage_error: &str = "Usage: --import <rec> <rect> | --export <rect> <rec>";
+    const USAGE_ERROR: &str = "Usage: --import <rec> <rect> | --export <rect> <rec>";
 
-    match args.get(1).ok_or(usage_error)?.as_str() {
+    match args.get(1).ok_or(USAGE_ERROR)?.as_str() {
         "--import" => {
             let conts =
                 fs::read(args.get(2).ok_or(usage_error)?)?;
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
 
             let mut os = BitStream::new(vec![]);
             r.into_stream(&mut os)?;
-            fs::write(args.get(3).ok_or(usage_error)?, os.bytes())?;
+            fs::write(args.get(3).ok_or(usage_error)?, os.into_bytes())?;
             Ok(())
         }
         "--test-rec" => {
@@ -48,7 +48,7 @@ fn main() -> Result<()> {
 
             let mut os = BitStream::new(vec![]);
             r.into_stream(&mut os)?;
-            assert_eq!(bs.bytes(), os.bytes());
+            assert_eq!(bs.into_bytes(), os.into_bytes());
             Ok(())
         }
         "--test-full" => {
@@ -66,7 +66,7 @@ fn main() -> Result<()> {
 
             let mut os = BitStream::new(vec![]);
             r2.into_stream(&mut os)?;
-            assert_eq!(bs.bytes(), os.bytes());
+            assert_eq!(bs.into_bytes(), os.into_bytes());
             Ok(())
         }
         "--test-rect" => {

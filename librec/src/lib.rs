@@ -77,6 +77,6 @@ fn export_opt(input: String) -> Result<Vec<u8>> {
 
     let mut os = BitStream::new(vec![]);
     r.into_stream(&mut os)?;
-    Ok(os.bytes())
+    Ok(os.into_bytes())
 }
 
