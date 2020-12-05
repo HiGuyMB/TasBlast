@@ -36,15 +36,34 @@ extern {
 }
 
 #[wasm_bindgen]
-pub fn import_rec(conts: Vec<u8>) -> Option<String> {
-    if let Ok(result) = import_opt(conts) {
+pub fn import_rect(conts: Vec<u8>) -> Option<String> {
+    if let Ok(result) = import_rect_opt(conts) {
         Some(result)
     } else {
         None
     }
 }
 
-fn import_opt(conts: Vec<u8>) -> Result<String> {
+fn import_rect_opt(conts: Vec<u8>) -> Result<String> {
+    let mut bs = BitStream::new(conts);
+
+    let r = Recording::from_stream(&mut bs)?;
+    let tf = TasFile::from_rec(r);
+    let mut v: Vec<u8> = vec![];
+    tf.print(&mut v)?;
+    Ok(String::from_utf8(v)?)
+}
+
+#[wasm_bindgen]
+pub fn import_json(conts: Vec<u8>) -> Option<String> {
+    if let Ok(result) = import_json_opt(conts) {
+        Some(result)
+    } else {
+        None
+    }
+}
+
+fn import_json_opt(conts: Vec<u8>) -> Result<String> {
     let mut bs = BitStream::new(conts);
 
     let r = Recording::from_stream(&mut bs)?;
@@ -53,8 +72,8 @@ fn import_opt(conts: Vec<u8>) -> Result<String> {
 }
 
 #[wasm_bindgen]
-pub fn export_rec(input: String) -> Vec<u8> {
-    match export_opt(input) {
+pub fn export_rect(input: String) -> Vec<u8> {
+    match export_rect_opt(input) {
         Ok(mut result) => {
             result.insert(0, 1);
             result
@@ -67,13 +86,32 @@ pub fn export_rec(input: String) -> Vec<u8> {
     }
 }
 
-fn export_opt(input: String) -> Result<Vec<u8>> {
-    let r = if let Ok(r) = serde_json::from_str::<Recording>(&input) {
-        r
-    } else {
-        let tf = TasFile::parse(input)?;
-        tf.into_rec()
-    };
+fn export_rect_opt(input: String) -> Result<Vec<u8>> {
+    let tf = TasFile::parse(input)?;
+    let r = tf.into_rec();
+
+    let mut os = BitStream::new(vec![]);
+    r.into_stream(&mut os)?;
+    Ok(os.into_bytes())
+}
+
+#[wasm_bindgen]
+pub fn export_json(input: String) -> Vec<u8> {
+    match export_json_opt(input) {
+        Ok(mut result) => {
+            result.insert(0, 1);
+            result
+        }
+        Err(error) => {
+            let mut result = format!("{:?}", error).into_bytes();
+            result.insert(0, 0);
+            result
+        }
+    }
+}
+
+fn export_json_opt(input: String) -> Result<Vec<u8>> {
+    let r = serde_json::from_str::<Recording>(&input)?;
 
     let mut os = BitStream::new(vec![]);
     r.into_stream(&mut os)?;

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Rec TAS Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+        }
+        body {
+            display: flex;
+            flex-direction: row;
+        }
+        #input, #output {
+            flex-grow: 1;
+            flex-basis: 50%;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+        #rect {
+            width: 100%;
+            flex-grow: 1;
+        }
+    </style>
+</head>
+<body>
+<div id="input">
+    <div>
+        Input File: <input type="file" name="file" id="input_file">
+    </div>
+    <textarea name="rect" id="rect" cols="30" rows="10">{
+    "marble/data/missions/beginner/timetrial.mis"
+    {
+        // Takes 14 frames to load this map, no matter how long they are.
+        "Load Buffer"
+        frames 14
+    }
+    {
+        // Jump, Jump, Bounce
+        "Fast Start"
+
+        // Rotate the marble 45 degrees so we point more forwards
+        // (Probably helps but hasn't done anything for me yet)
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (1 0 0)
+            triggers (0 0 0 0 0 0)
+        }
+        {}
+        frames 116
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (-1 0 0)
+            triggers (0 0 0 0 0 0)
+        }
+        {}
+        moveframe 1 ms
+        {
+            // For normal levels, do this:
+            // camera (-0.785398163397448 0 0)
+            // Because time trial is rotated 89.3814 degrees,
+            // That's 0.6186 from 90 degrees, aka 0.010796606752837 radians
+            // So add that to the camera and get:
+            camera (-0.774601556644611 0 0)
+            move (1 1 0)
+            triggers (0 0 0 0 0 0)
+        }
+        {}
+        moveframe 0 ms
+        {
+            camera (0 0 0)
+            move (1 1 0)
+            triggers (0 0 0 0 0 0)
+        }
+        {}
+        frames 2640
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (1 1 0)
+            triggers (0 0 1 0 0 0)
+        }
+        {}
+        frames 100
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (1 1 0)
+            triggers (0 0 0 0 0 0)
+        }
+        {}
+        frames 665
+    }
+    {
+        // Starts on the frame after "Go"
+        "Past Go"
+
+        // Jumping off the front edge of the start pad... slows us down?
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (0.5 0.5 0)
+            triggers (0 0 0 0 0 0)
+        }
+        {}
+        frames 300
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (0 1 0)
+            triggers (0 0 1 0 0 0)
+        }
+        {}
+        frames 100
+        // Just go forwards
+        moveframe 1 ms
+        {
+            camera (0 0 0)
+            move (1 1 0)
+            triggers (0 0 1 0 0 0)
+        }
+        {}
+        frames 10000
+    }
+}
+</textarea>
+    <input type="submit" value="Convert!" id="convert">
+</div>
+<div id="output">
+    <span>Errors (if any):</span>
+    <pre id="error"></pre>
+</div>
+    <script src="index.js"></script>
+</body>
+</html>
