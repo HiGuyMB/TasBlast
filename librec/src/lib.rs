@@ -79,7 +79,7 @@ pub fn export_rect(input: String) -> Vec<u8> {
             result
         }
         Err(error) => {
-            let mut result = format!("{:?}", error).into_bytes();
+            let mut result = format!("{}", error).into_bytes();
             result.insert(0, 0);
             result
         }
