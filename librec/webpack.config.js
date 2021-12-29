@@ -7,7 +7,8 @@ const dist = path.resolve(__dirname, "dist");
 module.exports = {
   mode: "production",
   entry: {
-    index: "./js/index.js"
+    index: "./js/index.js",
+    rec_fps: "./js/rec_fps.js"
   },
   output: {
     path: dist,
